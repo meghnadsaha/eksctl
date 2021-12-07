@@ -35,6 +35,7 @@ func vpcConfig() *api.ClusterVPC {
 		NAT: &api.ClusterNAT{
 			Gateway: &disable,
 		},
+		ClusterEndpoints: api.ClusterEndpointAccessDefaults(),
 		Subnets: &api.ClusterSubnets{
 			Public: api.AZSubnetMappingFromMap(map[string]api.AZSubnetSpec{
 				azB: {
