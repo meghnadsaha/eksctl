@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 	gfn "github.com/weaveworks/goformation/v4/cloudformation"
+	gfncfn "github.com/weaveworks/goformation/v4/cloudformation/cloudformation"
 	gfneks "github.com/weaveworks/goformation/v4/cloudformation/eks"
 	gfnt "github.com/weaveworks/goformation/v4/cloudformation/types"
 
@@ -134,7 +135,13 @@ func (c *ClusterResourceSet) newResource(name string, resource gfn.Resource) *gf
 
 func (c *ClusterResourceSet) addResourcesForControlPlane(subnetDetails *subnetDetails) {
 	clusterVPC := &gfneks.Cluster_ResourcesVpcConfig{
-		SecurityGroupIds: gfnt.NewSlice(c.securityGroups...),
+		EndpointPublicAccess:  gfnt.NewBoolean(*c.spec.VPC.ClusterEndpoints.PublicAccess),
+		EndpointPrivateAccess: gfnt.NewBoolean(*c.spec.VPC.ClusterEndpoints.PrivateAccess),
+		SecurityGroupIds:      gfnt.NewSlice(c.securityGroups...),
+	}
+
+	if cidrs := c.spec.VPC.PublicAccessCIDRs; len(cidrs) > 0 {
+		clusterVPC.PublicAccessCidrs = gfnt.NewStringSlice(cidrs...)
 	}
 
 	clusterVPC.SubnetIds = gfnt.NewSlice(append(subnetDetails.PublicSubnetRefs(), subnetDetails.PrivateSubnetRefs()...)...)
@@ -157,12 +164,15 @@ func (c *ClusterResourceSet) addResourcesForControlPlane(subnetDetails *subnetDe
 	}
 
 	cluster := gfneks.Cluster{
-		Name:               gfnt.NewString(c.spec.Metadata.Name),
-		RoleArn:            serviceRoleARN,
-		Version:            gfnt.NewString(c.spec.Metadata.Version),
-		ResourcesVpcConfig: clusterVPC,
 		EncryptionConfig:   encryptionConfigs,
+		Logging:            makeClusterLogging(c.spec),
+		Name:               gfnt.NewString(c.spec.Metadata.Name),
+		ResourcesVpcConfig: clusterVPC,
+		RoleArn:            serviceRoleARN,
+		Tags:               makeCFNTags(c.spec),
+		Version:            gfnt.NewString(c.spec.Metadata.Version),
 	}
+
 	if c.spec.KubernetesNetworkConfig != nil && c.spec.KubernetesNetworkConfig.ServiceIPv4CIDR != "" {
 		cluster.KubernetesNetworkConfig = &gfneks.Cluster_KubernetesNetworkConfig{
 			ServiceIpv4Cidr: gfnt.NewString(c.spec.KubernetesNetworkConfig.ServiceIPv4CIDR),
@@ -202,6 +212,17 @@ func (c *ClusterResourceSet) addResourcesForControlPlane(subnetDetails *subnetDe
 				return nil
 			})
 	}
+}
+
+func makeCFNTags(clusterConfig *api.ClusterConfig) []gfncfn.Tag {
+	var tags []gfncfn.Tag
+	for k, v := range clusterConfig.Metadata.Tags {
+		tags = append(tags, gfncfn.Tag{
+			Key:   gfnt.NewString(k),
+			Value: gfnt.NewString(v),
+		})
+	}
+	return tags
 }
 
 func (c *ClusterResourceSet) addResourcesForFargate() {
