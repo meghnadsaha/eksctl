@@ -77,8 +77,11 @@ type Properties struct {
 	Name, Version      string
 	RoleArn            interface{}
 	ResourcesVpcConfig struct {
-		SecurityGroupIds []interface{}
-		SubnetIds        []interface{}
+		SecurityGroupIds      []interface{}
+		SubnetIds             []interface{}
+		EndpointPublicAccess  bool
+		EndpointPrivateAccess bool
+		PublicAccessCidrs     []string
 	}
 	EncryptionConfig []struct {
 		Provider struct {
@@ -93,6 +96,7 @@ type Properties struct {
 			InstanceType string
 		}
 	}
+	Logging              ClusterLogging
 	MixedInstancesPolicy *struct {
 		LaunchTemplate struct {
 			LaunchTemplateSpecification struct {
@@ -111,6 +115,16 @@ type Properties struct {
 			SpotAllocationStrategy              string
 		}
 	}
+}
+
+type ClusterLogging struct {
+	ClusterLogging struct {
+		EnabledTypes []ClusterLoggingType
+	}
+}
+
+type ClusterLoggingType struct {
+	Type string
 }
 
 type SGIngress struct {
